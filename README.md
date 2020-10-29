@@ -2,11 +2,11 @@
 
 `./sshp.sh ssh root@...` or `./sshp.sh scp ...`
 
-推荐在.bashrc或.zshrc中加上
+推荐在.bashrc或.zshrc中加上，例如
 
 ```
-alias ssh='sshp /usr/bin/ssh'
-alias scp='sshp /usr/bin/scp'
+alias ssh='~/sshp.sh /usr/bin/ssh'
+alias scp='~/sshp.sh /usr/bin/scp'
 ```
 
 运行时，无需密码则在提示输入密码出回车即可
