@@ -9,4 +9,11 @@ alias ssh='~/sshp.sh /usr/bin/ssh'
 alias scp='~/sshp.sh /usr/bin/scp'
 ```
 
+或放到环境变量中然后
+
+```
+alias ssh='sshp.sh /usr/bin/ssh'
+alias scp='sshp.sh /usr/bin/scp'
+```
+
 运行时，无需密码则在提示输入密码出回车即可
