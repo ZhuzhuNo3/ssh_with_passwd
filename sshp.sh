@@ -7,8 +7,8 @@ PASSPATH=~/.ssh/passwd_record
 USECMD=1
 
 # 下面不要改
-[ x$(which sshpass) == x  ] && echo "需要安装sshpass" && exit 1
-[ x$(which expect) == x  ] && echo "需要安装expect" && exit 1
+[[ $USECMD == 0 && x$(which sshpass) == x ]] && echo "需要安装sshpass" && exit 1
+[[ $USECMD == 1 && x$(which expect) == x ]] && echo "需要安装expect" && exit 1
 
 [ $# -lt 2 ] && echo "参数过少" && exit 1
 PASSWD=
@@ -26,7 +26,7 @@ if [ x$LINK == x ]; then
     fi
 fi
 
-if [ ! -f "$PASSPATH" ]; then
+if [ ! -f $PASSPATH ]; then
     touch $PASSPATH
     [ $? != 0 ] && echo "无法创建: "$PASSPATH && exit 1
 fi
@@ -55,6 +55,7 @@ function exsshpass() {
         \"Are you sure you want to continue connecting*\" {send \"yes\\r\"; exp_continue}
         \"s password:*\" {send \"$PASSWD\\r\"}
         \"Enter passphrase*\" {send \"$PASSWD\\r\"}
+        \"Last login*\" {}
         \"*Connection refused*\" {set x [exec $DELRECORD]; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
         timeout {set x [exec $DELRECORD]; log_user 1; send_user \"请求超时\"; exit 1}
     }
