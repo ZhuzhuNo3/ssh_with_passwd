@@ -6,7 +6,9 @@ PASSPATH=~/.ssh/passwd_record
 # 可以选择使用什么方式登陆，0:使用sshpass命令行工具 (需要安装sshpass) 1:使用我自己写的expect方法 (需要安装expect)
 USECMD=1
 # 当选择expect时，可选择是否显示输入密码的过程，为1时显示，为0时不显示（但同时也会隐藏一些额外的登陆信息）
-SHOW_MSG=1
+SHOW_MSG=0
+
+TIMEOUT=5
 
 # 下面不要改
 [[ $USECMD == 0 && x$(which sshpass) == x ]] && echo "需要安装sshpass" && exit 1
@@ -23,6 +25,7 @@ if [ x$LINK == x ]; then
         LINK=$2
     elif [ x${CMD##*/} == x"scp" ]; then
         LINK=`echo "$COMM" | sed 's/^.* \([^ ]*\):.*$/\1/g'`
+        TIMEOUT=-1
     else
         exit 1
     fi
@@ -42,49 +45,48 @@ if [ x$TAG == x ]; then
     echo "$LINK $PASSWD" >> $PASSPATH
 fi
 
+if [ x$TAG == x1 ]; then
+    SHOW_MSG=1
+fi
+
 if [ $(uname) == "Darwin" ]; then
-    DELRECORD="sed -i '' -e '/^$LINK .*/d' $PASSPATH"
+    DELRECORD="sed -i \"\" -e \"/^$LINK .*/d\" $PASSPATH"
 elif [ $(uname) == "Linux" ]; then
-    DELRECORD="sed -i '/^$LINK .*/d' $PASSPATH"
+    DELRECORD="sed -i \"/^$LINK .*/d\" $PASSPATH"
 fi
 
 function exsshpass() {
     CV_COMM=`echo $COMM | sed -E 's/;/\\\\;/g' | sed -E 's/\\$/\\\\$/g'`
     expect -c "
-    log_user $SHOW_MSG
-    set timeout 5
+    log_user 0
+    set timeout $TIMEOUT
     spawn $CV_COMM
+    log_user $SHOW_MSG
     expect {
         \"Are you sure you want to continue connecting*\" {send \"yes\\r\"; exp_continue}
-        \"s password:*\" {send \"$PASSWD\\r\"}
-        \"Enter passphrase*\" {send \"$PASSWD\\r\"}
-        \"Last login*\" {}
-        \"*Connection refused*\" {set x [exec $DELRECORD]; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
-        timeout {set x [exec $DELRECORD]; log_user 1; send_user \"请求超时\"; exit 1}
+        \"s password:*\" {send \"$PASSWD\\r\"; log_user 1}
+        \"Enter passphrase*\" {send \"$PASSWD\\r\"; log_user 1}
+        \"Last login*\" {log_user 1}
+        \"*Connection refused*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
+        timeout {exec $DELRECORD; log_user 1; send_user \"请求超时\\n\"; exit 1}
     }
     if {[catch {
         set timeout 0
         expect {
-            \"*please try again*\" {set x [exec $DELRECORD]; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
+            \"*please try again*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
         }
         } fid]} {
-        log_user 1
         exit 0
     }
-    log_user 1
     interact
     exit 0
     "
 }
 
-if [ x$TAG == x1 ]; then
-    $COMM
-else
-    if [ x$USECMD == x0 ]; then
-        # sshpass 版本
-        sshpass -p "$PASSWD" $COMM
-    elif [ x$USECMD == x1 ]; then
-        # expect  版本
-        exsshpass
-    fi
+if [ x$USECMD == x0 ]; then
+    # sshpass 版本
+    sshpass -p "$PASSWD" $COMM
+elif [ x$USECMD == x1 ]; then
+    # expect  版本
+    exsshpass
 fi
