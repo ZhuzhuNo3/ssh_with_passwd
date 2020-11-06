@@ -62,21 +62,25 @@ function exsshpass() {
     set timeout $TIMEOUT
     spawn $CV_COMM
     log_user $SHOW_MSG
+    set x 0
     expect {
         \"Are you sure you want to continue connecting*\" {send \"yes\\r\"; exp_continue}
-        \"s password:*\" {send \"$PASSWD\\r\"; log_user 1}
-        \"Enter passphrase*\" {send \"$PASSWD\\r\"; log_user 1}
-        \"Last login*\" {log_user 1}
+        \"s password:*\" {
+            if { "'$x'" eq 0 } {
+                set x 1
+                send \"$PASSWD\\r\"
+                log_user 1
+                exp_continue
+            } else {
+                exec $DELRECORD
+                exit 1
+            }
+        }
+        \"Enter passphrase*\" {send \"$PASSWD\\r\"; log_user 1; exp_continue}
+        \"*please try again*\" {exec $DELRECORD; exit 1}
+        \"Last login*\" {}
         \"*Connection refused*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
         timeout {exec $DELRECORD; log_user 1; send_user \"请求超时\\n\"; exit 1}
-    }
-    if {[catch {
-        set timeout 0
-        expect {
-            \"*please try again*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
-        }
-        } fid]} {
-        exit 0
     }
     interact
     exit 0
