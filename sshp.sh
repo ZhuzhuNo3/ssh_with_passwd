@@ -21,14 +21,17 @@ CMD=$1
 LINK=`echo "$COMM" | grep -oE "\w{1,}@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"`
 
 if [ x$LINK == x ]; then
-    if [ x${CMD##*/} == x"ssh" ]; then
+    if [ x${1##*/} == x"ssh" ]; then
         LINK=$2
-    elif [ x${CMD##*/} == x"scp" ]; then
+    elif [ x${1##*/} == x"scp" ]; then
         LINK=`echo "$COMM" | sed 's/^.* \([^ ]*\):.*$/\1/g'`
-        TIMEOUT=-1
     else
         exit 1
     fi
+fi
+
+if [ x${1##*/} == x"scp" ]; then
+    TIMEOUT=-1
 fi
 
 if [ ! -f $PASSPATH ]; then
@@ -70,7 +73,9 @@ function exsshpass() {
                 set x 1
                 send \"$PASSWD\\r\"
                 log_user 1
-                exp_continue
+                if { $TIMEOUT != -1 } {
+                    exp_continue
+                }
             } else {
                 exec $DELRECORD
                 exit 1
