@@ -89,7 +89,7 @@ function exsshpass() {
     }
     interact
     exit 0
-    "
+    " 2> /dev/null
 }
 
 if [ x$USECMD == x0 ]; then
