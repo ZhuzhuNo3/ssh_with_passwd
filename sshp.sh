@@ -8,7 +8,7 @@ USECMD=1
 # 当选择expect时，可选择是否显示输入密码的过程，为1时显示，为0时不显示（但同时也会隐藏一些额外的登陆信息）
 SHOW_MSG=0
 
-TIMEOUT=5
+TIMEOUT=30
 
 # 下面不要改
 [[ $USECMD == 0 && x$(which sshpass) == x ]] && echo "需要安装sshpass" && exit 1
@@ -52,6 +52,10 @@ if [ x$TAG == x1 ]; then
     SHOW_MSG=1
 fi
 
+function eraseDarwin() {
+    echo 2 && sed -i \"\" -e \"/^$LINK .*/d\" $PASSPATH
+}
+
 if [ $(uname) == "Darwin" ]; then
     DELRECORD="sed -i \"\" -e \"/^$LINK .*/d\" $PASSPATH"
 elif [ $(uname) == "Linux" ]; then
@@ -62,6 +66,15 @@ function exsshpass() {
     CV_COMM=`echo $COMM | sed -E 's/;/\\\\;/g' | sed -E 's/\\$/\\\\$/g'`
     expect -c "
     log_user 0
+    proc delPW {} {
+        send_user -- \"remove password? (y/n) \"
+        expect_user -re \"(.*)\\n\"
+        set tag \$expect_out(1,string)
+        if { "'$tag'" eq \"y\" } {
+            exec $DELRECORD
+            send_user \"ok\\n\"
+        }
+    }
     set timeout $TIMEOUT
     spawn $CV_COMM
     log_user $SHOW_MSG
@@ -82,13 +95,13 @@ function exsshpass() {
             }
         }
         \"Enter passphrase*\" {send \"$PASSWD\\r\"; log_user 1; exp_continue}
-        \"*please try again*\" {exec $DELRECORD; exit 1}
+        \"*please try again*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
         \"Last login*\" {}
-        \"*Connection refused*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
-        timeout {exec $DELRECORD; log_user 1; send_user \"请求超时\\n\"; exit 1}
+        \"*\\[#\\\\\\$]\" {}
+        \"*Connection refused*\" {log_user 1; send_user \"\$expect_out(buffer)\"; delPW; exit 1}
+        timeout {log_user 1; send_user \"请求超时\\n\"; delPW; exit 1}
     }
     interact
-    exit 0
     " 2> /dev/null
 }
 
