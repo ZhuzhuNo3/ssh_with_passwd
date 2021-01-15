@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 # 自定义密码存放文件，可以直接在文件中加入账户和密码，格式为账户+空格+密码，例: `root@192.0.1.3 abcd`
 # 如果没有，连接时会请求输入密码，如果连接出错，会删除对应的账户以及密码
@@ -20,17 +20,17 @@ COMM=$@
 CMD=$1
 LINK=`echo "$COMM" | grep -oE "\w{1,}@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"`
 
-if [ x$LINK == x ]; then
-    if [ x${1##*/} == x"ssh" ]; then
+if [[ x$LINK == x ]]; then
+    if [[ x${1##*/} == x"ssh" ]]; then
         LINK=$2
-    elif [ x${1##*/} == x"scp" ]; then
+    elif [[ x${1##*/} == x"scp" ]]; then
         LINK=`echo "$COMM" | sed 's/^.* \([^ ]*\):.*$/\1/g'`
     else
         exit 1
     fi
 fi
 
-if [ x${1##*/} == x"scp" ]; then
+if [[ $# -gt 2 ]]; then
     TIMEOUT=-1
 fi
 
@@ -41,24 +41,32 @@ fi
 
 TAG=`awk '{if($1=="'$LINK'"){print "1"$2;exit}}' $PASSPATH`
 PASSWD=${TAG: 1}
-if [ x$TAG == x ]; then
+if [[ x$TAG == x ]]; then
     echo -n "Password:"
     read -s PASSWD
     echo
     echo "$LINK $PASSWD" >> $PASSPATH
 fi
 
-if [ x$TAG == x1 ]; then
+if [[ x$TAG == x1 ]]; then
     SHOW_MSG=1
 fi
+
+function tran2expect() {
+    declare -A trans=(['\']='\\' ['}']='\}' ['[']='\[' ['$']='\$' ['`']='\`' ['"']='\"')
+    for k in '\' '}' '[' '$' '`' '"'
+    do
+        PASSWD=${PASSWD/${k}/${trans[$k]}}
+    done
+}
 
 function eraseDarwin() {
     echo 2 && sed -i \"\" -e \"/^$LINK .*/d\" $PASSPATH
 }
 
-if [ $(uname) == "Darwin" ]; then
+if [[ $(uname) == "Darwin" ]]; then
     DELRECORD="sed -i \"\" -e \"/^$LINK .*/d\" $PASSPATH"
-elif [ $(uname) == "Linux" ]; then
+elif [[ $(uname) == "Linux" ]]; then
     DELRECORD="sed -i \"/^$LINK .*/d\" $PASSPATH"
 fi
 
@@ -95,20 +103,21 @@ function exsshpass() {
             }
         }
         \"Enter passphrase*\" {send \"$PASSWD\\r\"; log_user 1; exp_continue}
-        \"*please try again*\" {exec $DELRECORD; log_user 1; send_user \"\$expect_out(buffer)\"; exit 1}
+        \"*please try again*\" {exec $DELRECORD; exit 1}
         \"Last login*\" {}
         \"*\\[#\\\\\\$]\" {}
-        \"*Connection refused*\" {log_user 1; send_user \"\$expect_out(buffer)\"; delPW; exit 1}
+        \"*Connection*\" {log_user 1; send_user \"\$expect_out(buffer)\"; delPW; exit 1}
         timeout {log_user 1; send_user \"请求超时\\n\"; delPW; exit 1}
     }
     interact
     " 2> /dev/null
 }
 
-if [ x$USECMD == x0 ]; then
+if [[ x$USECMD == x0 ]]; then
     # sshpass 版本
     sshpass -p "$PASSWD" $COMM
-elif [ x$USECMD == x1 ]; then
+elif [[ x$USECMD == x1 ]]; then
     # expect  版本
+    tran2expect
     exsshpass
 fi
