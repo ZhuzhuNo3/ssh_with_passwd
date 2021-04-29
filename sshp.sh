@@ -32,6 +32,9 @@ fi
 
 if [[ $# -gt 2 ]]; then
     TIMEOUT=-1
+    if [[ x${1##*/} == x"ssh" ]] && [[ $# -eq 2 ]]; then
+        COMM="$COMM -o ServerAliveInterval=30"
+    fi
 fi
 
 if [ ! -f $PASSPATH ]; then
@@ -112,6 +115,29 @@ function exsshpass() {
     interact
     " 2> /dev/null
 }
+
+while true
+do
+    sleep 3.5
+    if ! ps x | grep -v grep | grep -q 'nc -l 2000'; then
+        while true;
+        do
+            msg=`nc -l 2000 2>/dev/null`
+            if [ "${msg}" != "" ];then
+                echo -nE "${msg}"|pbcopy
+            fi
+        done &
+        cpid=$!
+        while ps x|grep -v grep|awk '{print $5}'|egrep -q '^('"${PATH//:/|}"')?/?ssh$'
+        do
+            sleep 3
+        done
+        kill -9 $cpid
+        echo -n | nc localhost 2000
+    fi
+    break
+done >/dev/null 2>&1 &
+disown
 
 if [[ x$USECMD == x0 ]]; then
     # sshpass 版本
