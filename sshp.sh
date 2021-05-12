@@ -4,7 +4,7 @@
 # 如果没有，连接时会请求输入密码，如果连接出错，会删除对应的账户以及密码
 PASSPATH=~/.ssh/passwd_record
 # 可以选择使用什么方式登陆，0:使用sshpass命令行工具 (需要安装sshpass) 1:使用我自己写的expect方法 (需要安装expect)
-USECMD=1
+USECMD=0
 # 当选择expect时，可选择是否显示输入密码的过程，为1时显示，为0时不显示（但同时也会隐藏一些额外的登陆信息）
 SHOW_MSG=0
 
@@ -16,9 +16,17 @@ TIMEOUT=30
 
 [ $# -lt 2 ] && echo "参数过少" && exit 1
 PASSWD=
-COMM=$@
+COMM=($@)
 CMD=$1
 LINK=`echo "$COMM" | grep -oE "\w{1,}@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"`
+
+declare -A sshpassErr
+sshpassErr[1]="INVALID_ARGUMENTS"
+sshpassErr[2]="CONFLICTING_ARGUMENTS"
+sshpassErr[3]="RUNTIME_ERROR"
+sshpassErr[4]="PARSE_ERRROR"
+sshpassErr[5]="INCORRECT_PASSWORD"
+sshpassErr[6]="HOST_KEY_UNKNOWN"
 
 if [[ x$LINK == x ]]; then
     if [[ x${1##*/} == x"ssh" ]]; then
@@ -32,9 +40,10 @@ fi
 
 if [[ $# -gt 2 ]]; then
     TIMEOUT=-1
-    if [[ x${1##*/} == x"ssh" ]] && [[ $# -eq 2 ]]; then
-        COMM="$COMM -o ServerAliveInterval=30"
-    fi
+fi
+
+if [[ x${1##*/} == x"ssh" ]] && [[ $# -eq 2 ]]; then
+    COMM=(${COMM[1]} -o StrictHostKeyChecking=no -o ServerAliveInterval=30 ${COMM[@]:1})
 fi
 
 if [ ! -f $PASSPATH ]; then
@@ -72,6 +81,15 @@ if [[ $(uname) == "Darwin" ]]; then
 elif [[ $(uname) == "Linux" ]]; then
     DELRECORD="sed -i \"/^$LINK .*/d\" $PASSPATH"
 fi
+
+function delPW() {
+    echo -n 'remove password? (y/n) '
+    read x
+    if [ ! -z $x ] && [ $x = "Y" -o $x = "y" -o $x = "yes" ];then
+        zsh -c $DELRECORD
+        echo "ok"
+    fi
+}
 
 function exsshpass() {
     CV_COMM=`echo $COMM | sed -E 's/;/\\\\;/g' | sed -E 's/\\$/\\\\$/g'`
@@ -141,7 +159,12 @@ disown
 
 if [[ x$USECMD == x0 ]]; then
     # sshpass 版本
-    sshpass -p "$PASSWD" $COMM
+    sshpass -p "$PASSWD" ${COMM[@]}
+    ret=$?
+    if [ $ret -gt 0 -a $ret -lt 7 ]; then
+        echo ${sshpassErr[$ret]}
+        delPW
+    fi
 elif [[ x$USECMD == x1 ]]; then
     # expect  版本
     tran2expect
