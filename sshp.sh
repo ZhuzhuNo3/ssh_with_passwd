@@ -21,7 +21,6 @@ CMD=$1
 LINK=`echo "$COMM" | grep -oE "\w{1,}@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"`
 
 declare -A sshpassErr
-sshpassErr[1]="INVALID_ARGUMENTS"
 sshpassErr[2]="CONFLICTING_ARGUMENTS"
 sshpassErr[3]="RUNTIME_ERROR"
 sshpassErr[4]="PARSE_ERRROR"
@@ -44,6 +43,8 @@ fi
 
 if [[ x${1##*/} == x"ssh" ]] && [[ $# -eq 2 ]]; then
     COMM=(${COMM[1]} -o StrictHostKeyChecking=no -o ServerAliveInterval=30 ${COMM[@]:1})
+elif [[ x$(which expect) == x ]]; then
+    USECMD=1
 fi
 
 if [ ! -f $PASSPATH ]; then
@@ -136,7 +137,7 @@ function exsshpass() {
 
 while true
 do
-    sleep 3.5
+    sleep 6
     if ! ps x | grep -v grep | grep -q 'nc -l 2000'; then
         while true;
         do
@@ -161,7 +162,7 @@ if [[ x$USECMD == x0 ]]; then
     # sshpass 版本
     sshpass -p "$PASSWD" ${COMM[@]}
     ret=$?
-    if [ $ret -gt 0 -a $ret -lt 7 ]; then
+    if [ $ret -gt 1 -a $ret -lt 7 ]; then
         echo ${sshpassErr[$ret]}
         delPW
     fi
